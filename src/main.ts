@@ -23,6 +23,15 @@ async function main() {
     // Take screenshot after login attempt
     await scraper.screenshot('after-login.png');
 
+    if (loginSuccess) {
+      // Click on dsbmobile_schueler element
+      await scraper.clickSchuelerElement();
+      console.log('Clicked on student section');
+
+      // Take screenshot after clicking
+      await scraper.screenshot('after-schueler-click.png');
+    }
+
     // Keep browser open for a few seconds to observe
     await new Promise(resolve => setTimeout(resolve, 5000));
 

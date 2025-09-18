@@ -73,6 +73,28 @@ export class DSBScraper {
     }
   }
 
+  async clickSchuelerElement() {
+    if (!this.page) throw new Error('Page not initialized');
+
+    console.log('Looking for dsbmobile_schueler element...');
+
+    try {
+      // Wait for the element containing "dsbmobile_schueler" text
+      await this.page.waitForSelector('text=dsbmobile_schueler', { timeout: 10000 });
+
+      // Click on the element
+      await this.page.click('text=dsbmobile_schueler');
+      console.log('Clicked on dsbmobile_schueler element');
+
+      // Wait for navigation/loading
+      await this.page.waitForLoadState('networkidle');
+
+    } catch (error) {
+      console.error('Failed to click dsbmobile_schueler element:', error);
+      throw error;
+    }
+  }
+
   async screenshot(filename: string = 'screenshot.png') {
     if (!this.page) throw new Error('Page not initialized');
     await this.page.screenshot({ path: filename, fullPage: true });
