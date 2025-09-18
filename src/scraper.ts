@@ -246,6 +246,220 @@ export class DSBScraper {
     return formattedData
   }
 
+  async clickMainPageNext(): Promise<boolean> {
+    if (!this.page) throw new Error("Page not initialized")
+
+    console.log("Looking for main page next button...")
+
+    try {
+      // Look for control-next button on the main page (not in iframe)
+      const nextButton = await this.page.locator("img.control-next").first()
+
+      // Check if button exists and is not disabled
+      const isDisabled = await nextButton.evaluate((el) => {
+        return el.classList.contains("disabled")
+      }).catch(() => true) // If element doesn't exist, consider it disabled
+
+      if (isDisabled) {
+        console.log("Main page next button is disabled")
+        return false
+      }
+
+      // Click the next button
+      await nextButton.click()
+      console.log("Clicked main page next button")
+
+      // Wait for page to load
+      await this.page.waitForLoadState("networkidle")
+
+      // Small delay to ensure content is updated
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      return true
+
+    } catch (error) {
+      console.error("Failed to click main page next button:", error)
+      return false
+    }
+  }
+
+  async extractCurrentPageData(): Promise<Array<{date: string | null, messages: Record<string, any[]>}>> {
+    if (!this.page) throw new Error("Page not initialized")
+
+    console.log("Looking for all iframes and extracting schedule data from each...")
+
+    try {
+      // Wait for iframes to be present
+      await this.page.waitForSelector("iframe", { timeout: 10000 })
+      console.log("Found iframes")
+
+      // Get all frames on the page
+      const frames = this.page.frames()
+      console.log(`Found ${frames.length} total frames`)
+
+      const allDaysData: Array<{date: string | null, messages: Record<string, any[]>}> = []
+
+      // Process each frame to find ones with schedule data
+      for (let i = 0; i < frames.length; i++) {
+        const frame = frames[i]
+
+        try {
+          // Check if this frame has tables
+          await frame.waitForSelector("table", { timeout: 2000 })
+          console.log(`\n--- Processing frame ${i + 1} ---`)
+
+          // Extract data from this frame
+          const frameData = await frame.evaluate(() => {
+            // Extract date from mon_title div
+            let extractedDate = null
+            const monTitleElement = document.querySelector(".mon_title")
+            if (monTitleElement) {
+              const dateText = monTitleElement.textContent?.trim()
+              if (dateText) {
+                // Convert from DD.M.YYYY or DD.MM.YYYY to YYYY-MM-DD
+                const dateMatch = dateText.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/)
+                if (dateMatch) {
+                  const [, day, month, year] = dateMatch
+                  extractedDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+                }
+              }
+            }
+
+            // Look for the table that starts with "Stunde" in the first cell
+            const tables = document.querySelectorAll("table")
+            console.log(`Found ${tables.length} tables in this frame`)
+
+            for (let i = 0; i < tables.length; i++) {
+              const table = tables[i]
+              const firstCell = table.querySelector("tr:first-child td:first-child, tr:first-child th:first-child")
+
+              if (firstCell && firstCell.textContent?.trim().toLowerCase().includes("stunde")) {
+                console.log(`Found schedule table (table ${i + 1})`)
+
+                const rows = table.querySelectorAll("tr")
+                const data: string[][] = []
+
+                rows.forEach((row) => {
+                  const cells = row.querySelectorAll("td, th")
+                  const rowData: string[] = []
+
+                  cells.forEach((cell) => {
+                    // Get text content and clean it up
+                    const text = cell.textContent?.trim() || ""
+                    rowData.push(text)
+                  })
+
+                  if (rowData.length > 0) {
+                    data.push(rowData)
+                  }
+                })
+
+                return { date: extractedDate, tableData: data }
+              }
+            }
+
+            // Return null if no schedule table found
+            return null
+          })
+
+          // If we found valid data in this frame, process it
+          if (frameData && frameData.tableData) {
+            console.log(`Extracted date: ${frameData.date}`)
+
+            // Process the data to format it properly
+            const formattedMessages = this.formatScheduleData(frameData.tableData)
+
+            // Add to collection
+            allDaysData.push({
+              date: frameData.date,
+              messages: formattedMessages
+            })
+
+            console.log(`Successfully extracted data for ${frameData.date || 'unknown date'}`)
+          } else {
+            console.log(`No schedule data found in frame ${i + 1}`)
+          }
+
+        } catch (error) {
+          // Frame doesn't have tables or other error, skip it
+          console.log(`Frame ${i + 1}: No tables or error occurred, skipping`)
+        }
+      }
+
+      console.log(`\nCompleted extraction for ${allDaysData.length} days from ${frames.length} frames on current page`)
+      return allDaysData
+
+    } catch (error) {
+      console.error("Failed to extract data from frames:", error)
+      throw error
+    }
+  }
+
+  async extractAllDaysData(): Promise<Array<{date: string | null, messages: Record<string, any[]>}>> {
+    // Use Map to deduplicate by date, keeping newest data (later pages override earlier ones)
+    const dateMap = new Map<string, {date: string | null, messages: Record<string, any[]>}>()
+    let pageCount = 1
+    const maxPages = 20 // Safety limit to prevent infinite loops
+
+    console.log("Starting multi-page data extraction...")
+
+    while (pageCount <= maxPages) {
+      try {
+        console.log(`\n=== Processing page ${pageCount} ===`)
+
+        // Extract data from all iframes on current page
+        const currentPageData = await this.extractCurrentPageData()
+        console.log(`Found ${currentPageData.length} days on page ${pageCount}`)
+
+        // Add current page data to collection, overwriting duplicates
+        for (const dayData of currentPageData) {
+          if (dayData.date) {
+            const existingData = dateMap.get(dayData.date)
+            if (existingData) {
+              console.log(`Updating existing data for ${dayData.date} with newer version from page ${pageCount}`)
+            } else {
+              console.log(`Adding new data for ${dayData.date} from page ${pageCount}`)
+            }
+            dateMap.set(dayData.date, dayData)
+          } else {
+            console.log(`Skipping entry with null date from page ${pageCount}`)
+          }
+        }
+
+        // Try to navigate to next page
+        const hasNextPage = await this.clickMainPageNext()
+        if (!hasNextPage) {
+          console.log("No more pages available (button disabled or not found)")
+          break
+        }
+
+        pageCount++
+
+      } catch (error) {
+        console.error(`Error processing page ${pageCount}:`, error)
+        break
+      }
+    }
+
+    if (pageCount > maxPages) {
+      console.log("Reached maximum pages limit")
+    }
+
+    // Convert Map to array and sort by date
+    const allData = Array.from(dateMap.values()).sort((a, b) => {
+      if (!a.date) return 1
+      if (!b.date) return -1
+      return a.date.localeCompare(b.date)
+    })
+
+    console.log(`\n=== Completed extraction ===`)
+    console.log(`Total pages processed: ${pageCount}`)
+    console.log(`Unique days extracted: ${allData.length}`)
+    console.log(`Date range: ${allData[0]?.date || 'unknown'} to ${allData[allData.length - 1]?.date || 'unknown'}`)
+
+    return allData
+  }
+
   async screenshot(filename: string = "screenshot.png") {
     if (!this.page) throw new Error("Page not initialized")
     await this.page.screenshot({ path: filename, fullPage: true })
