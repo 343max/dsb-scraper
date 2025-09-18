@@ -30,6 +30,14 @@ async function main() {
 
       // Take screenshot after clicking
       await scraper.screenshot('after-schueler-click.png');
+
+      // Extract table data from iframe
+      const tableData = await scraper.extractTableFromFrame();
+      console.log('Table extraction completed');
+
+      // Save table data to JSON file
+      await Bun.write('table-data.json', JSON.stringify(tableData, null, 2));
+      console.log('Table data saved to table-data.json');
     }
 
     // Keep browser open for a few seconds to observe

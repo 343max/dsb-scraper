@@ -95,6 +95,95 @@ export class DSBScraper {
     }
   }
 
+  async extractTableFromFrame() {
+    if (!this.page) throw new Error('Page not initialized');
+
+    console.log('Looking for iframe and extracting schedule table data...');
+
+    try {
+      // Wait for iframe to be present
+      await this.page.waitForSelector('iframe', { timeout: 10000 });
+      console.log('Found iframe');
+
+      // Get all frames on the page
+      const frames = this.page.frames();
+      console.log(`Found ${frames.length} frames`);
+
+      // Find the iframe that contains tables
+      let targetFrame = null;
+      for (const frame of frames) {
+        try {
+          await frame.waitForSelector('table', { timeout: 2000 });
+          targetFrame = frame;
+          console.log('Found frame with tables');
+          break;
+        } catch {
+          // Frame doesn't have tables, continue
+        }
+      }
+
+      if (!targetFrame) {
+        throw new Error('No frame with tables found');
+      }
+
+      // Look for the table that starts with "Stunde" in the first cell
+      const tableData = await targetFrame.evaluate(() => {
+        const tables = document.querySelectorAll('table');
+        console.log(`Found ${tables.length} tables`);
+
+        for (let i = 0; i < tables.length; i++) {
+          const table = tables[i];
+          const firstCell = table.querySelector('tr:first-child td:first-child, tr:first-child th:first-child');
+
+          if (firstCell && firstCell.textContent?.trim().toLowerCase().includes('stunde')) {
+            console.log(`Found schedule table (table ${i + 1})`);
+
+            const rows = table.querySelectorAll('tr');
+            const data: string[][] = [];
+
+            rows.forEach((row) => {
+              const cells = row.querySelectorAll('td, th');
+              const rowData: string[] = [];
+
+              cells.forEach((cell) => {
+                // Get text content and clean it up
+                const text = cell.textContent?.trim() || '';
+                rowData.push(text);
+              });
+
+              if (rowData.length > 0) {
+                data.push(rowData);
+              }
+            });
+
+            return data;
+          }
+        }
+
+        // If no table with "Stunde" found, return info about all tables
+        console.log('No table with "Stunde" found. Available tables:');
+        const allTablesInfo: string[] = [];
+        tables.forEach((table, i) => {
+          const firstCell = table.querySelector('tr:first-child td:first-child, tr:first-child th:first-child');
+          const firstCellText = firstCell?.textContent?.trim() || 'empty';
+          allTablesInfo.push(`Table ${i + 1}: "${firstCellText}"`);
+          console.log(`Table ${i + 1}: "${firstCellText}"`);
+        });
+
+        throw new Error(`No table with "Stunde" found. Available: ${allTablesInfo.join(', ')}`);
+      });
+
+      console.log('Extracted schedule table data:');
+      console.log(JSON.stringify(tableData, null, 2));
+
+      return tableData;
+
+    } catch (error) {
+      console.error('Failed to extract schedule table from iframe:', error);
+      throw error;
+    }
+  }
+
   async screenshot(filename: string = 'screenshot.png') {
     if (!this.page) throw new Error('Page not initialized');
     await this.page.screenshot({ path: filename, fullPage: true });
