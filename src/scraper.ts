@@ -176,12 +176,51 @@ export class DSBScraper {
       console.log('Extracted schedule table data:');
       console.log(JSON.stringify(tableData, null, 2));
 
-      return tableData;
+      // Process the data to format it properly
+      const formattedData = this.formatScheduleData(tableData);
+      console.log('Formatted schedule data:');
+      console.log(JSON.stringify(formattedData, null, 2));
+
+      return formattedData;
 
     } catch (error) {
       console.error('Failed to extract schedule table from iframe:', error);
       throw error;
     }
+  }
+
+  private formatScheduleData(rawData: string[][]): Record<string, any[]> {
+    // Skip the header row (first row)
+    const dataRows = rawData.slice(1);
+    const formattedData: Record<string, any[]> = {};
+
+    let currentKey = '';
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+
+      // If row has only one entry, it's a key (class name)
+      if (row.length === 1 && row[0].trim() !== '' && row[0] !== '-----') {
+        currentKey = row[0].trim();
+        formattedData[currentKey] = [];
+      }
+      // If row has multiple entries and we have a current key, it's data for that key
+      else if (row.length > 1 && currentKey) {
+        // Create an object from the row data using the original header structure
+        const scheduleEntry = {
+          stunde: row[0] || '',
+          vertreter: row[1] || '',
+          fach_klammer: row[2] || '',
+          fach: row[3] || '',
+          raum_klammer: row[4] || '',
+          raum: row[5] || '',
+          text: row[6] || ''
+        };
+        formattedData[currentKey].push(scheduleEntry);
+      }
+    }
+
+    return formattedData;
   }
 
   async screenshot(filename: string = 'screenshot.png') {
