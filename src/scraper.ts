@@ -207,14 +207,15 @@ export class DSBScraper {
       // If row has multiple entries and we have a current key, it's data for that key
       else if (row.length > 1 && currentKey) {
         // Create an object from the row data using the original header structure
+        // Convert '---' strings to null for cleaner data
         const scheduleEntry = {
-          stunde: row[0] || '',
-          vertreter: row[1] || '',
-          fach_klammer: row[2] || '',
-          fach: row[3] || '',
-          raum_klammer: row[4] || '',
-          raum: row[5] || '',
-          text: row[6] || ''
+          stunde: row[0] === '---' ? null : (row[0] || ''),
+          vertreter: row[1] === '---' ? null : (row[1] || ''),
+          fach_klammer: row[2] === '---' ? null : (row[2] || ''),
+          fach: row[3] === '---' ? null : (row[3] || ''),
+          raum_klammer: row[4] === '---' ? null : (row[4] || ''),
+          raum: row[5] === '---' ? null : (row[5] || ''),
+          text: row[6] === '---' ? null : (row[6] || '')
         };
         formattedData[currentKey].push(scheduleEntry);
       }
