@@ -462,7 +462,9 @@ export class DSBScraper {
 
   async screenshot(filename: string = "screenshot.png") {
     if (!this.page) throw new Error("Page not initialized")
-    await this.page.screenshot({ path: filename, fullPage: true })
-    console.log(`Screenshot saved as ${filename}`)
+
+    const screenshotPath = `screenshots/${filename}`
+    await this.page.screenshot({ path: screenshotPath, fullPage: true })
+    console.log(`Screenshot saved as ${screenshotPath}`)
   }
 }
