@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/main.ts",
+    "scrape": "bun run src/main.ts",
     "dev": "bun run --watch src/main.ts",
     "ui": "bun run src/main.ts --ui",
     "test": "playwright test"
