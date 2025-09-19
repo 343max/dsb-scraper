@@ -21,13 +21,3 @@ deploy: build
 # Clean up local images
 clean:
 	docker rmi $(IMAGE_NAME):$(TAG) || true
-
-# Show help
-help:
-	@echo "Available targets:"
-	@echo "  build   - Build the Docker image"
-	@echo "  deploy  - Build and push to GHCR"
-	@echo "  clean   - Remove local Docker image"
-	@echo "  help    - Show this help message"
-	@echo ""
-	@echo "Image will be tagged as: $(IMAGE_NAME):$(TAG)"
