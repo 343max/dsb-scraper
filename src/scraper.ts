@@ -156,14 +156,15 @@ export class DSBScraper {
             const standMatch = text.match(/Stand:\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})/)
             if (standMatch) {
               const [, day, month, year, hour, minute] = standMatch
-              // Create date to check if it's DST in Berlin
-              const standDate = new Date(
-                `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`
-              )
-              const isDST = standDate
-                .toLocaleString("en", { timeZone: "Europe/Berlin", timeZoneName: "short" })
-                .includes("CEST")
-              const timezone = isDST ? "+02:00" : "+01:00"
+
+              const offsetMinutes = new Date().getTimezoneOffset()
+              const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60)
+              const offsetMins = Math.abs(offsetMinutes) % 60
+              const sign = offsetMinutes <= 0 ? "+" : "-"
+              const timezone = `${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMins
+                .toString()
+                .padStart(2, "0")}`
+
               // Convert to ISO format with Berlin timezone
               lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(
                 2,
@@ -369,13 +370,13 @@ export class DSBScraper {
                 if (standMatch) {
                   const [, day, month, year, hour, minute] = standMatch
                   // Create date to check if it's DST in Berlin
-                  const standDate = new Date(
-                    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`
-                  )
-                  const isDST = standDate
-                    .toLocaleString("en", { timeZone: "Europe/Berlin", timeZoneName: "short" })
-                    .includes("CEST")
-                  const timezone = isDST ? "+02:00" : "+01:00"
+                  const offsetMinutes = new Date().getTimezoneOffset()
+                  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60)
+                  const offsetMins = Math.abs(offsetMinutes) % 60
+                  const sign = offsetMinutes <= 0 ? "+" : "-"
+                  const timezone = `${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMins
+                    .toString()
+                    .padStart(2, "0")}`
                   // Convert to ISO format with Berlin timezone
                   lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(
                     2,
@@ -526,7 +527,6 @@ export class DSBScraper {
     // Generate last_scrape timestamp in Berlin timezone
     const now = new Date()
     const berlinTime = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: "Europe/Berlin",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -537,9 +537,12 @@ export class DSBScraper {
       .format(now)
       .replace(" ", "T")
 
-    // Determine if it's DST in Berlin (UTC+2) or standard time (UTC+1)
-    const isDST = now.toLocaleString("en", { timeZone: "Europe/Berlin", timeZoneName: "short" }).includes("CEST")
-    const timezone = isDST ? "+02:00" : "+01:00"
+    // Calculate timezone offset in minutes and convert to hours:minutes format
+    const offsetMinutes = new Date().getTimezoneOffset()
+    const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60)
+    const offsetMins = Math.abs(offsetMinutes) % 60
+    const sign = offsetMinutes <= 0 ? "+" : "-"
+    const timezone = `${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMins.toString().padStart(2, "0")}`
     const lastScrape = `${berlinTime}${timezone}`
 
     console.log(`\n=== Completed extraction ===`)
