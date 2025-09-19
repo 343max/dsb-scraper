@@ -1,4 +1,5 @@
 import { chromium, Browser, Page } from "playwright"
+import { isDashes } from "./dash-matcher"
 
 export class DSBScraper {
   private browser: Browser | null = null
@@ -156,11 +157,18 @@ export class DSBScraper {
             if (standMatch) {
               const [, day, month, year, hour, minute] = standMatch
               // Create date to check if it's DST in Berlin
-              const standDate = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`)
-              const isDST = standDate.toLocaleString('en', { timeZone: 'Europe/Berlin', timeZoneName: 'short' }).includes('CEST')
-              const timezone = isDST ? '+02:00' : '+01:00'
+              const standDate = new Date(
+                `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`
+              )
+              const isDST = standDate
+                .toLocaleString("en", { timeZone: "Europe/Berlin", timeZoneName: "short" })
+                .includes("CEST")
+              const timezone = isDST ? "+02:00" : "+01:00"
               // Convert to ISO format with Berlin timezone
-              lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00${timezone}`
+              lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(
+                2,
+                "0"
+              )}:${minute}:00${timezone}`
               break
             }
           }
@@ -244,8 +252,8 @@ export class DSBScraper {
       const row = dataRows[i]
 
       // If row has only one entry, it's a key (class name)
-      if (row.length === 1 && row[0].trim() !== "" && row[0] !== "-----") {
-        currentKey = row[0].trim()
+      if (row.length === 1 && row[0].trim() !== "") {
+        currentKey = isDashes(row[0]) ? "allgemein" : row[0].trim()
         formattedData[currentKey] = []
       }
       // If row has multiple entries and we have a current key, it's data for that key
@@ -253,13 +261,13 @@ export class DSBScraper {
         // Create an object from the row data using the original header structure
         // Convert '---' strings to null for cleaner data
         const scheduleEntry = {
-          stunde: row[0] === "---" ? null : row[0] || "",
-          vertreter: row[1] === "---" ? null : row[1] || "",
-          fach_vorher: row[2] === "---" ? null : row[2] || "",
-          fach_neu: row[3] === "---" ? null : row[3] || "",
-          raum_vorher: row[4] === "---" ? null : row[4] || "",
-          raum_neu: row[5] === "---" ? null : row[5] || "",
-          text: row[6] === "---" ? null : row[6] || "",
+          stunde: isDashes(row[0]) ? null : row[0] || "",
+          vertreter: isDashes(row[1]) ? null : row[1] || "",
+          fach_vorher: isDashes(row[2]) ? null : row[2] || "",
+          fach_neu: isDashes(row[3]) ? null : row[3] || "",
+          raum_vorher: isDashes(row[4]) ? null : row[4] || "",
+          raum_neu: isDashes(row[5]) ? null : row[5] || "",
+          text: isDashes(row[6]) ? null : row[6] || "",
         }
         formattedData[currentKey].push(scheduleEntry)
       }
@@ -278,9 +286,11 @@ export class DSBScraper {
       const nextButton = await this.page.locator("img.control-next").first()
 
       // Check if button exists and is not disabled
-      const isDisabled = await nextButton.evaluate((el) => {
-        return el.classList.contains("disabled")
-      }).catch(() => true) // If element doesn't exist, consider it disabled
+      const isDisabled = await nextButton
+        .evaluate((el) => {
+          return el.classList.contains("disabled")
+        })
+        .catch(() => true) // If element doesn't exist, consider it disabled
 
       if (isDisabled) {
         console.log("Main page next button is disabled")
@@ -295,17 +305,18 @@ export class DSBScraper {
       await this.page.waitForLoadState("networkidle")
 
       // Small delay to ensure content is updated
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 2000))
 
       return true
-
     } catch (error) {
       console.error("Failed to click main page next button:", error)
       return false
     }
   }
 
-  async extractCurrentPageData(): Promise<Array<{date: string | null, messages: Record<string, any[]>, lastUpdate: string | null}>> {
+  async extractCurrentPageData(): Promise<
+    Array<{ date: string | null; messages: Record<string, any[]>; lastUpdate: string | null }>
+  > {
     if (!this.page) throw new Error("Page not initialized")
 
     console.log("Looking for all iframes and extracting schedule data from each...")
@@ -319,7 +330,7 @@ export class DSBScraper {
       const frames = this.page.frames()
       console.log(`Found ${frames.length} total frames`)
 
-      const allDaysData: Array<{date: string | null, messages: Record<string, any[]>, lastUpdate: string | null}> = []
+      const allDaysData: Array<{ date: string | null; messages: Record<string, any[]>; lastUpdate: string | null }> = []
 
       // Process each frame to find ones with schedule data
       for (let i = 0; i < frames.length; i++) {
@@ -358,11 +369,18 @@ export class DSBScraper {
                 if (standMatch) {
                   const [, day, month, year, hour, minute] = standMatch
                   // Create date to check if it's DST in Berlin
-                  const standDate = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`)
-                  const isDST = standDate.toLocaleString('en', { timeZone: 'Europe/Berlin', timeZoneName: 'short' }).includes('CEST')
-                  const timezone = isDST ? '+02:00' : '+01:00'
+                  const standDate = new Date(
+                    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`
+                  )
+                  const isDST = standDate
+                    .toLocaleString("en", { timeZone: "Europe/Berlin", timeZoneName: "short" })
+                    .includes("CEST")
+                  const timezone = isDST ? "+02:00" : "+01:00"
                   // Convert to ISO format with Berlin timezone
-                  lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00${timezone}`
+                  lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(
+                    2,
+                    "0"
+                  )}:${minute}:00${timezone}`
                   break
                 }
               }
@@ -416,14 +434,13 @@ export class DSBScraper {
             allDaysData.push({
               date: frameData.date,
               messages: formattedMessages,
-              lastUpdate: frameData.lastUpdate
+              lastUpdate: frameData.lastUpdate,
             })
 
-            console.log(`Successfully extracted data for ${frameData.date || 'unknown date'}`)
+            console.log(`Successfully extracted data for ${frameData.date || "unknown date"}`)
           } else {
             console.log(`No schedule data found in frame ${i + 1}`)
           }
-
         } catch (error) {
           // Frame doesn't have tables or other error, skip it
           console.log(`Frame ${i + 1}: No tables or error occurred, skipping`)
@@ -432,16 +449,19 @@ export class DSBScraper {
 
       console.log(`\nCompleted extraction for ${allDaysData.length} days from ${frames.length} frames on current page`)
       return allDaysData
-
     } catch (error) {
       console.error("Failed to extract data from frames:", error)
       throw error
     }
   }
 
-  async extractAllDaysData(): Promise<{last_update: string | null, last_scrape: string, days: Array<{date: string | null, messages: Record<string, any[]>}>}> {
+  async extractAllDaysData(): Promise<{
+    last_update: string | null
+    last_scrape: string
+    days: Array<{ date: string | null; messages: Record<string, any[]> }>
+  }> {
     // Use Map to deduplicate by date, keeping newest data (later pages override earlier ones)
-    const dateMap = new Map<string, {date: string | null, messages: Record<string, any[]>}>()
+    const dateMap = new Map<string, { date: string | null; messages: Record<string, any[]> }>()
     let lastUpdate: string | null = null
     let pageCount = 1
     const maxPages = 20 // Safety limit to prevent infinite loops
@@ -486,7 +506,6 @@ export class DSBScraper {
         }
 
         pageCount++
-
       } catch (error) {
         console.error(`Error processing page ${pageCount}:`, error)
         break
@@ -506,32 +525,34 @@ export class DSBScraper {
 
     // Generate last_scrape timestamp in Berlin timezone
     const now = new Date()
-    const berlinTime = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Berlin',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }).format(now).replace(' ', 'T')
+    const berlinTime = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Berlin",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .format(now)
+      .replace(" ", "T")
 
     // Determine if it's DST in Berlin (UTC+2) or standard time (UTC+1)
-    const isDST = now.toLocaleString('en', { timeZone: 'Europe/Berlin', timeZoneName: 'short' }).includes('CEST')
-    const timezone = isDST ? '+02:00' : '+01:00'
+    const isDST = now.toLocaleString("en", { timeZone: "Europe/Berlin", timeZoneName: "short" }).includes("CEST")
+    const timezone = isDST ? "+02:00" : "+01:00"
     const lastScrape = `${berlinTime}${timezone}`
 
     console.log(`\n=== Completed extraction ===`)
     console.log(`Total pages processed: ${pageCount}`)
     console.log(`Unique days extracted: ${allData.length}`)
-    console.log(`Date range: ${allData[0]?.date || 'unknown'} to ${allData[allData.length - 1]?.date || 'unknown'}`)
-    console.log(`Last update: ${lastUpdate || 'not found'}`)
+    console.log(`Date range: ${allData[0]?.date || "unknown"} to ${allData[allData.length - 1]?.date || "unknown"}`)
+    console.log(`Last update: ${lastUpdate || "not found"}`)
     console.log(`Last scrape: ${lastScrape}`)
 
     return {
       last_update: lastUpdate,
       last_scrape: lastScrape,
-      days: allData
+      days: allData,
     }
   }
 
