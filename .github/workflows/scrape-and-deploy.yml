@@ -35,6 +35,12 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Disable man db for faster playwright install
+        run: |
+          sudo mv /usr/bin/mandb /usr/bin/mandb-OFF
+          sudo cp -p /bin/true /usr/bin/mandb 
+          sudo rm -r /var/cache/man
+
       - name: Install Playwright Chromium
         run: bunx playwright install chromium --with-deps
 
