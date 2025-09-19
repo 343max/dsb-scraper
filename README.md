@@ -1,15 +1,35 @@
-# dsb-scraper
+# DSB Scraper
 
-To install dependencies:
+## Setup
 
-```bash
-bun install
+Create a `.env` file with your DSB credentials:
+
+```
+DSB_USERNAME=your_username
+DSB_PASSWORD=your_password
 ```
 
-To run:
+## Usage
 
+Run the scraper locally:
 ```bash
-bun run index.ts
+bun run scrape
 ```
 
-This project was created using `bun init` in bun v1.2.17. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+## Docker
+
+Build the Docker image:
+```bash
+make build
+```
+
+Deploy to GitHub Container Registry:
+```bash
+export GITHUB_TOKEN=your_token_here
+make deploy
+```
+
+Run the container:
+```bash
+docker run -v $(pwd)/.env:/.env -v $(pwd)/debug-data:/data ghcr.io/your-username/dsb-scraper
+```
