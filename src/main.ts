@@ -36,8 +36,8 @@ async function main() {
       console.log(`Extraction completed for ${allDaysData.length} days`);
 
       // Save all days data to JSON file
-      await Bun.write('table-data.json', JSON.stringify(allDaysData, null, 2));
-      console.log('All days data saved to table-data.json');
+      await Bun.write('schedule-modifications.json', JSON.stringify(allDaysData, null, 2));
+      console.log('All days data saved to schedule-modifications.json');
     }
 
     // Keep browser open for a few seconds to observe
