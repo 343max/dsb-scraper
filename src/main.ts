@@ -16,8 +16,15 @@ async function main() {
     // Take a screenshot to see the initial page
     await scraper.screenshot('initial-page.png');
 
-    // Attempt login with provided credentials
-    const loginSuccess = await scraper.login('XXXXXXXXXXX', 'XXXXXXXXXXX');
+    // Attempt login with provided credentials from environment
+    const username = process.env.DSB_USERNAME;
+    const password = process.env.DSB_PASSWORD;
+
+    if (!username || !password) {
+      throw new Error('DSB_USERNAME and DSB_PASSWORD environment variables are required');
+    }
+
+    const loginSuccess = await scraper.login(username, password);
     console.log(`Login attempt completed: ${loginSuccess ? 'SUCCESS' : 'FAILED'}`);
 
     // Take screenshot after login attempt
