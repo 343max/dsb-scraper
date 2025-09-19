@@ -145,6 +145,28 @@ export class DSBScraper {
           }
         }
 
+        // Extract "Stand:" date time for last_update
+        let lastUpdate = null
+        const standElements = document.querySelectorAll("*")
+        for (const element of standElements) {
+          const text = element.textContent?.trim()
+          if (text && text.includes("Stand:")) {
+            // Look for pattern like "Stand: 19.09.2025 09:04"
+            const standMatch = text.match(/Stand:\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})/)
+            if (standMatch) {
+              const [, day, month, year, hour, minute] = standMatch
+              // Create date to check if it's DST in Berlin
+              const standDate = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`)
+              const isDST = standDate.toLocaleString('en', { timeZone: 'Europe/Berlin', timeZoneName: 'short' }).includes('CEST')
+              const timezone = isDST ? '+02:00' : '+01:00'
+              // Convert to ISO format with Berlin timezone
+              lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00${timezone}`
+              break
+            }
+          }
+        }
+        console.log("Found Stand date:", lastUpdate)
+
         // Look for the table that starts with "Stunde" in the first cell
         const tables = document.querySelectorAll("table")
         console.log(`Found ${tables.length} tables`)
@@ -174,7 +196,7 @@ export class DSBScraper {
               }
             })
 
-            return { date: extractedDate, tableData: data }
+            return { date: extractedDate, tableData: data, lastUpdate: lastUpdate }
           }
         }
 
@@ -283,7 +305,7 @@ export class DSBScraper {
     }
   }
 
-  async extractCurrentPageData(): Promise<Array<{date: string | null, messages: Record<string, any[]>}>> {
+  async extractCurrentPageData(): Promise<Array<{date: string | null, messages: Record<string, any[]>, lastUpdate: string | null}>> {
     if (!this.page) throw new Error("Page not initialized")
 
     console.log("Looking for all iframes and extracting schedule data from each...")
@@ -297,7 +319,7 @@ export class DSBScraper {
       const frames = this.page.frames()
       console.log(`Found ${frames.length} total frames`)
 
-      const allDaysData: Array<{date: string | null, messages: Record<string, any[]>}> = []
+      const allDaysData: Array<{date: string | null, messages: Record<string, any[]>, lastUpdate: string | null}> = []
 
       // Process each frame to find ones with schedule data
       for (let i = 0; i < frames.length; i++) {
@@ -321,6 +343,27 @@ export class DSBScraper {
                 if (dateMatch) {
                   const [, day, month, year] = dateMatch
                   extractedDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+                }
+              }
+            }
+
+            // Extract "Stand:" date time for last_update
+            let lastUpdate = null
+            const standElements = document.querySelectorAll("*")
+            for (const element of standElements) {
+              const text = element.textContent?.trim()
+              if (text && text.includes("Stand:")) {
+                // Look for pattern like "Stand: 19.09.2025 09:04"
+                const standMatch = text.match(/Stand:\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})/)
+                if (standMatch) {
+                  const [, day, month, year, hour, minute] = standMatch
+                  // Create date to check if it's DST in Berlin
+                  const standDate = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`)
+                  const isDST = standDate.toLocaleString('en', { timeZone: 'Europe/Berlin', timeZoneName: 'short' }).includes('CEST')
+                  const timezone = isDST ? '+02:00' : '+01:00'
+                  // Convert to ISO format with Berlin timezone
+                  lastUpdate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00${timezone}`
+                  break
                 }
               }
             }
@@ -354,7 +397,7 @@ export class DSBScraper {
                   }
                 })
 
-                return { date: extractedDate, tableData: data }
+                return { date: extractedDate, tableData: data, lastUpdate: lastUpdate }
               }
             }
 
@@ -372,7 +415,8 @@ export class DSBScraper {
             // Add to collection
             allDaysData.push({
               date: frameData.date,
-              messages: formattedMessages
+              messages: formattedMessages,
+              lastUpdate: frameData.lastUpdate
             })
 
             console.log(`Successfully extracted data for ${frameData.date || 'unknown date'}`)
@@ -395,9 +439,10 @@ export class DSBScraper {
     }
   }
 
-  async extractAllDaysData(): Promise<Array<{date: string | null, messages: Record<string, any[]>}>> {
+  async extractAllDaysData(): Promise<{last_update: string | null, last_scrape: string, days: Array<{date: string | null, messages: Record<string, any[]>}>}> {
     // Use Map to deduplicate by date, keeping newest data (later pages override earlier ones)
     const dateMap = new Map<string, {date: string | null, messages: Record<string, any[]>}>()
+    let lastUpdate: string | null = null
     let pageCount = 1
     const maxPages = 20 // Safety limit to prevent infinite loops
 
@@ -413,6 +458,12 @@ export class DSBScraper {
 
         // Add current page data to collection, overwriting duplicates
         for (const dayData of currentPageData) {
+          // Capture the last_update from the first frame that has it
+          if (dayData.lastUpdate && !lastUpdate) {
+            lastUpdate = dayData.lastUpdate
+            console.log(`Captured last_update: ${lastUpdate}`)
+          }
+
           if (dayData.date) {
             const existingData = dateMap.get(dayData.date)
             if (existingData) {
@@ -420,7 +471,8 @@ export class DSBScraper {
             } else {
               console.log(`Adding new data for ${dayData.date} from page ${pageCount}`)
             }
-            dateMap.set(dayData.date, dayData)
+            // Only store date and messages, not lastUpdate since it goes at the top level
+            dateMap.set(dayData.date, { date: dayData.date, messages: dayData.messages })
           } else {
             console.log(`Skipping entry with null date from page ${pageCount}`)
           }
@@ -452,12 +504,35 @@ export class DSBScraper {
       return a.date.localeCompare(b.date)
     })
 
+    // Generate last_scrape timestamp in Berlin timezone
+    const now = new Date()
+    const berlinTime = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Berlin',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).format(now).replace(' ', 'T')
+
+    // Determine if it's DST in Berlin (UTC+2) or standard time (UTC+1)
+    const isDST = now.toLocaleString('en', { timeZone: 'Europe/Berlin', timeZoneName: 'short' }).includes('CEST')
+    const timezone = isDST ? '+02:00' : '+01:00'
+    const lastScrape = `${berlinTime}${timezone}`
+
     console.log(`\n=== Completed extraction ===`)
     console.log(`Total pages processed: ${pageCount}`)
     console.log(`Unique days extracted: ${allData.length}`)
     console.log(`Date range: ${allData[0]?.date || 'unknown'} to ${allData[allData.length - 1]?.date || 'unknown'}`)
+    console.log(`Last update: ${lastUpdate || 'not found'}`)
+    console.log(`Last scrape: ${lastScrape}`)
 
-    return allData
+    return {
+      last_update: lastUpdate,
+      last_scrape: lastScrape,
+      days: allData
+    }
   }
 
   async screenshot(filename: string = "screenshot.png") {
