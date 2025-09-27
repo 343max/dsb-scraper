@@ -12,7 +12,7 @@ all: build
 
 # Build the Docker image
 build:
-	docker build -t $(IMAGE_NAME):$(TAG) .
+	docker build --progress=plain -t $(IMAGE_NAME):$(TAG) .
 
 # Build and deploy to GHCR
 deploy: build

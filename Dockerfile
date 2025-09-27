@@ -37,7 +37,7 @@ COPY . .
 RUN mkdir -p /data
 
 # Create scraper script
-RUN echo '#!/bin/bash\ncd /app\nbun run scrape && cp schedule-modifications.json /data/' > /usr/local/bin/run-scraper.sh && \
+RUN echo '#!/bin/bash\ncd /app\n/root/.bun/bin/bun run scrape && cp schedule-modifications.json /data/' > /usr/local/bin/run-scraper.sh && \
     chmod +x /usr/local/bin/run-scraper.sh
 
 # Setup cron job to run every 20 minutes
