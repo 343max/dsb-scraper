@@ -477,7 +477,7 @@ export class DSBScraper {
         const currentPageData = await this.extractCurrentPageData()
         console.log(`Found ${currentPageData.length} days on page ${pageCount}`)
 
-        // Add current page data to collection, overwriting duplicates
+        // Add current page data to collection, merging messages for same date
         for (const dayData of currentPageData) {
           // Capture the last_update from the first frame that has it
           if (dayData.lastUpdate && !lastUpdate) {
@@ -488,12 +488,15 @@ export class DSBScraper {
           if (dayData.date) {
             const existingData = dateMap.get(dayData.date)
             if (existingData) {
-              console.log(`Updating existing data for ${dayData.date} with newer version from page ${pageCount}`)
+              console.log(`Merging data for ${dayData.date} from page ${pageCount} with existing data`)
+              // Merge messages using spread operator - newer data (current page) overwrites existing
+              const mergedMessages = { ...existingData.messages, ...dayData.messages }
+              dateMap.set(dayData.date, { date: dayData.date, messages: mergedMessages })
             } else {
               console.log(`Adding new data for ${dayData.date} from page ${pageCount}`)
+              // Only store date and messages, not lastUpdate since it goes at the top level
+              dateMap.set(dayData.date, { date: dayData.date, messages: dayData.messages })
             }
-            // Only store date and messages, not lastUpdate since it goes at the top level
-            dateMap.set(dayData.date, { date: dayData.date, messages: dayData.messages })
           } else {
             console.log(`Skipping entry with null date from page ${pageCount}`)
           }
